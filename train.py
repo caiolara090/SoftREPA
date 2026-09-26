@@ -282,7 +282,13 @@ def main():
             sampler.text_enc_2.to("cuda:0")
             sampler.vae.to("cuda:0")
             sampler.denoiser.to("cuda:1")
-            model_device=sampler.denoiser.device
+            model_device = sampler.denoiser.device
+        else:
+            sampler.text_enc_1.to(args.device)
+            sampler.text_enc_2.to(args.device)
+            sampler.vae.to(args.device)
+            sampler.denoiser.to(args.device)
+            model_device = torch.device(args.device)
 
     elif args.model == 'sdxl':
         sampler = SDXLEulerDC(n_dc_tokens=args.n_dc_tokens, use_8bit=args.use_8bit, use_dc_t=args.use_dc_t, apply_dc=args.apply_dc)
@@ -292,16 +298,28 @@ def main():
             sampler.text_enc_2.to("cuda:0")
             sampler.vae.to("cuda:0")
             sampler.denoiser.to("cuda:1")
-            model_device=sampler.denoiser.device
+            model_device = sampler.denoiser.device
+        else:
+            sampler.text_enc.to(args.device)
+            sampler.text_enc_2.to(args.device)
+            sampler.vae.to(args.device)
+            sampler.denoiser.to(args.device)
+            model_device = torch.device(args.device)
 
     elif args.model == 'sd1.5':
         sampler = SD1EulerDC(n_dc_tokens=args.n_dc_tokens, use_8bit=args.use_8bit, use_dc_t=args.use_dc_t, apply_dc=args.apply_dc)
         sample_cfg = {'NFE':30, 'img_shape':(512,512), 'cfg_scale':7.0, 'use_dc':True} 
-        if args.separate_gpus and torch.cuda.device_count()>1:
+        if args.separate_gpus and torch.cuda.device_count() > 1:
             sampler.text_enc.to("cuda:0")
             sampler.vae.to("cuda:0")
             sampler.denoiser.to("cuda:1")
-            model_device=sampler.denoiser.device
+            model_device = sampler.denoiser.device
+        else:
+            sampler.text_enc.to(args.device)
+            sampler.vae.to(args.device)
+            sampler.denoiser.to(args.device)
+            model_device = torch.device(args.device)
+
         with torch.no_grad():
             null_embs = sampler.encode_prompt([""])[0][0, :1].expand(args.n_dc_tokens, -1)
             sampler.initialize_dc(null_embs)
@@ -326,12 +344,13 @@ def main():
 
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=1e-5) # T_0=20, T_mult=2
 
-    # multi gpu
+    # device setup
     if torch.cuda.device_count() > 1 and args.separate_gpus:
         print('Using {} GPUs'.format(torch.cuda.device_count()))
-        print(f"Number of trainable parameters: {sum(p.numel() for p in model.sampler.denoiser.parameters() if p.requires_grad)}")
     else:
-        raise NotImplementedError('does not support DDP, use the option sepearate_gpus=True')
+        print('Using 1 GPU')
+
+    print(f"Number of trainable parameters: {sum(p.numel() for p in model.sampler.denoiser.parameters() if p.requires_grad)}")
 
     model.sampler.denoiser.train()
 
